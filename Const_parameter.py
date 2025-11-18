@@ -1,31 +1,28 @@
-
+# Const_parameter.py
+import cv2
 import numpy as np
 
-# ----------------------------------------------------
-# 1. Hằng số Mẫu Chuẩn (Standard Constants)
-# ----------------------------------------------------
-# Vị trí tâm tem chuẩn (pixel)
-CENTER_X_STD = 300  
-CENTER_Y_STD = 250
-# Kích thước tem chuẩn (pixel)
-WIDTH_STD = 150
-HEIGHT_STD = 80
+# --- 0. ĐƯỜNG DẪN ẢNH CHUẨN ---
+# BẠN PHẢI THAY ĐỔI ĐƯỜNG DẪN NÀY ĐỂ TRỎ ĐẾN FILE 'chuan.jpg' CỦA BẠN
+# Ví dụ: "D:/MyProjects/Label_Inspector/chuan.jpg"
+STANDARD_IMAGE_PATH = r"C:\Users\Admin\Documents\_nam 4\huong\xu ly anh\source2\chuan.jpg" # Giả định file chuan.jpg nằm cùng thư mục
 
-# ----------------------------------------------------
-# 2. Hằng số Ngưỡng Sai số (Tolerance Thresholds)
-# ----------------------------------------------------
-# Ngưỡng chấp nhận sai số vị trí (pixel)
-TOLERANCE_SHIFT = 10 
-# Sai số kích thước tối đa (ví dụ: 0.15 = 15%)
-TOLERANCE_SIZE_PCT = 0.15 
+# 1. Hằng số Ngưỡng Sai số
+TOLERANCE_SHIFT = 30        # Ngưỡng lệch vị trí tối đa (pixel)
+TOLERANCE_SIZE_PCT = 0.10  # Sai số kích thước 10%
 
-# ----------------------------------------------------
-# 3. Hằng số Xử lý Ảnh (Image Processing)
-# ----------------------------------------------------
-# Kích thước Kernel cho phép đóng (Closing)
-KERNEL_SIZE = (5, 5) 
-# Ngưỡng nhị phân hóa (có thể cần điều chỉnh sau)
-THRESH_VALUE = 120 
+# 2. Hằng số Xử lý Ảnh
+KERNEL_SIZE = (5, 5)
+# Ngưỡng cao để tách TEM TRẮNG khỏi nền hồng/gỗ
+THRESH_VALUE_LABEL = 200
+# Ngưỡng thấp hơn để tách SP HỒNG khỏi nền gỗ
+THRESH_VALUE_PRODUCT = 100
 
-# Kernel cấu trúc cho phép đóng (Structural Element)
-CLOSING_KERNEL = cv2.getStructuringElement(cv2.MORPH_RECT, KERNEL_SIZE)
+# 3. THÔNG SỐ CHUẨN (SẼ ĐƯỢC TÍNH TOÁN KHI CHƯƠNG TRÌNH KHỞI ĐỘNG)
+# CHÚ Ý: KHÔNG CẦN NHẬP GIÁ TRỊ VÀO ĐÂY
+STANDARD_PARAMS = {
+    'label_center_x': None,
+    'label_center_y': None,
+    'label_width': None,
+    'label_height': None
+}
