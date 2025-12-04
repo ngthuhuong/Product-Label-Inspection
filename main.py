@@ -84,22 +84,18 @@ def classify_label(product_rect, product_angle, label_cnt):
 # ==========================
 
 def detect_label(img):
-    # 0. Cắt ảnh về hình vuông (lấy phần top)
     img_square = make_top_square(img)
     frame = img_square.copy()
     output = frame.copy()
 
-    # =========================
-    # 1. TÌM SẢN PHẨM (HỘP VÀNG)
-    # =========================
+   #tim sp
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
     lower_yellow = np.array(config.LOWER_YELLOW)
     upper_yellow = np.array(config.UPPER_YELLOW)
 
     product_mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
 
-    # 🔒 CLOSING + OPENING cho hộp (BẮT BUỘC)
+    # 🔒 CLOSING + OPENING
     kernel_prod = np.ones(
         (config.KERNEL_PRODUCT_SIZE, config.KERNEL_PRODUCT_SIZE), np.uint8
     )
@@ -117,7 +113,6 @@ def detect_label(img):
     )
 
     if not contours:
-        # không thấy hộp → trả về như cũ
         _, orig_buf = cv2.imencode(".jpg", img_square)
         _, mask_buf = cv2.imencode(".jpg", product_mask)
         _, out_buf  = cv2.imencode(".jpg", output)
@@ -128,34 +123,21 @@ def detect_label(img):
             base64.b64encode(orig_buf).decode("utf-8"),
         )
 
-    # contour hộp lớn nhất
     product_cnt = max(contours, key=cv2.contourArea)
     prod_rect = cv2.minAreaRect(product_cnt)   # ((cx,cy),(w,h),angle)
     product_angle = prod_rect[2]
-
-    # ❗Dùng diện tích CONTOUR để tránh phụ thuộc góc nghiêng
     product_area = cv2.contourArea(product_cnt)
 
-    # vẽ viền hộp
     cv2.drawContours(output, [product_cnt], -1, (0, 255, 0), 3)
 
-    # bounding box hộp để cắt ROI tìm tem
     x, y, w, h = cv2.boundingRect(product_cnt)
     roi = frame[y:y + h, x:x + w]
-
-    # =========================
-    # 2. TÌM TEM TRONG ROI
-    # =========================
-    # --- TÌM TEM TRONG ROI ---
-
-    # 1) Threshold theo độ sáng
     gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray_roi, config.GAUSSIAN_BLUR_KERNEL, 0)
     _, th_bin = cv2.threshold(
         blur, config.THRESH_BINARY_VALUE, 255, cv2.THRESH_BINARY
     )
 
-    # 2) Lọc theo màu tem (HSV gần trắng)
     hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
     mask_color = cv2.inRange(
         hsv_roi,
@@ -163,10 +145,10 @@ def detect_label(img):
         np.array(config.LABEL_UPPER_HSV)
     )
 
-    # 3) Kết hợp: chỉ giữ vùng vừa sáng vừa đúng màu
+    # chỉ giữ vùng vừa sáng vừa đúng màu
     th = cv2.bitwise_and(th_bin, mask_color)
 
-    # 4) CLOSING (bắt buộc để liền nét)
+    # CLOSING
     kernel_lbl = np.ones(
         (config.KERNEL_LABEL_SIZE, config.KERNEL_LABEL_SIZE), np.uint8
     )
@@ -181,14 +163,9 @@ def detect_label(img):
     contours_label = sorted(contours_label, key=cv2.contourArea, reverse=True)
 
     status = "khong_tim_thay"
-
-    # =========================
-    # 3. DUYỆT CÁC CONTOUR TEM
-    # =========================
     for cnt in contours_label:
         area = cv2.contourArea(cnt)
 
-        # 3.1 lọc diện tích cơ bản
         if not (
             config.LABEL_MIN_AREA
             < area
@@ -196,19 +173,12 @@ def detect_label(img):
         ):
             continue
 
-        # 3.2 độ phức tạp contour (lọc nền trắng phẳng)
         perim = cv2.arcLength(cnt, True)
         complexity = perim / (area + 1e-6)
         if complexity < config.LABEL_COMPLEXITY_MIN:
             continue
-        # nếu muốn dùng max thì mở lại:
-        # if complexity > config.LABEL_COMPLEXITY_MAX:
-        #     continue
-
-        # 3.3 chuyển sang tọa độ ảnh gốc
         cnt_shifted = cnt + [x, y]
 
-        # 3.4 tâm contour phải nằm trong hộp vàng
         M = cv2.moments(cnt_shifted)
         if M["m00"] == 0:
             continue
@@ -218,20 +188,15 @@ def detect_label(img):
         if inside < 0:
             continue
 
-        # =========================
-        # 4. TÍNH CÁC THÔNG SỐ
-        # =========================
         rect_label = cv2.minAreaRect(cnt_shifted)   # ((cx,cy),(rw,rh),angle)
         (lcx, lcy), (rw, rh), label_angle = rect_label
 
-        # lệch tâm (chuẩn hóa theo kích thước hộp)
         prod_cx = x + w / 2.0
         prod_cy = y + h / 2.0
         dx = abs(lcx - prod_cx) / w
         dy = abs(lcy - prod_cy) / h
         offset = max(dx, dy)
 
-        # chuẩn hóa góc về [-45,45]
         def norm_angle(a):
             if a < -45:
                 a += 90
@@ -241,16 +206,11 @@ def detect_label(img):
         label_angle_n = norm_angle(label_angle)
         relative_tilt = abs(label_angle_n - prod_angle_n)
 
-        # độ vuông vắn tem
         rect_area = rw * rh if rw * rh > 0 else area
         rectangularity = area / rect_area if rect_area > 0 else 0.0
 
-        # tỉ lệ diện tích tem / hộp (dùng contour area của hộp)
         area_ratio = area / float(product_area)
 
-        # =========================
-        # 5. CỜ LỖI LỆCH / RÁCH
-        # =========================
         is_lech = (
             offset > config.OFF_CENTER_OK or
             relative_tilt > config.REL_TILT_OK
@@ -261,9 +221,6 @@ def detect_label(img):
             or rectangularity < config.RECT_OK
         )
 
-        # =========================
-        # 6. SUY RA TRẠNG THÁI
-        # =========================
         if (not is_lech) and (not is_rach):
             status = "dan_dung"
             color = (0, 255, 0)
@@ -281,7 +238,7 @@ def detect_label(img):
             color = (0, 128, 255)   # cam
             text = "Lech + rach"
 
-        # vẽ contour + text
+        # vẽ contour
         cv2.drawContours(output, [cnt_shifted], -1, color, 2)
         lx, ly, lw, lh = cv2.boundingRect(cnt_shifted)
         cv2.putText(
@@ -293,10 +250,8 @@ def detect_label(img):
             color,
             2,
         )
+        break
 
-        break  # chỉ lấy tem hợp lệ đầu tiên
-
-    # nếu vẫn không tìm được tem
     if status == "khong_tim_thay":
         cv2.putText(
             output,
@@ -308,9 +263,7 @@ def detect_label(img):
             2,
         )
 
-    # =========================
-    # 7. ENCODE TRẢ VỀ WEB
-    # =========================
+
     _, mask_buf  = cv2.imencode(".jpg", product_mask)
     _, out_buf   = cv2.imencode(".jpg", output)
     _, orig_buf  = cv2.imencode(".jpg", img_square)
@@ -322,11 +275,6 @@ def detect_label(img):
         base64.b64encode(orig_buf).decode("utf-8"),
     )
 
-
-
-# ==========================
-# REALTIME STREAM
-# ==========================
 
 def gen_frames():
     global current_status, cam
@@ -388,10 +336,6 @@ def gen_frames():
             b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
         )
 
-
-# ==========================
-# ROUTES
-# ==========================
 
 @app.route("/")
 def index():
