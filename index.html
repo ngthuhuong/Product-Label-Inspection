@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Nhận diện tem sản phẩm</title>
+
+    <style>
+        body { text-align: center; font-family: Arial; }
+        img { width: 300px; margin: 15px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+
+<h2>Nhận diện tem sản phẩm</h2>
+
+<input type="file" id="fileInput" accept="image/*">
+<br><br>
+<button onclick="processImage()">Xử lý</button>
+
+<div id="display"></div>
+
+<script>
+function processImage() {
+    let file = document.getElementById("fileInput").files[0];
+    if (!file) {
+        alert("Chọn ảnh trước!");
+        return;
+    }
+
+    let formData = new FormData();
+    formData.append("image", file);
+
+    fetch("/process", {
+        method: "POST",
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("display").innerHTML = `
+            <h3>Kết quả</h3>
+
+            <p>Ảnh gốc</p>
+            <img src="${URL.createObjectURL(file)}">
+
+            <p>Mask sau xử lý</p>
+            <img src="data:image/jpeg;base64,${data.mask}">
+
+            <p>Ảnh cuối</p>
+            <img src="data:image/jpeg;base64,${data.result}">
+        `;
+    });
+}
+</script>
+
+</body>
+</html>
