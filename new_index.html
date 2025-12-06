@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Product Label Detector</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+<style>
+@keyframes scan {
+  0%   { top: 0%;   opacity: 0; }
+  10%  {           opacity: 1; }
+  90%  {           opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+.scanner-line {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: #3b82f6;
+  box-shadow: 0 0 10px #3b82f6;
+  animation: scan 2s linear infinite;
+  display: none;
+}
+.scanning .scanner-line {
+  display: block;
+}
+</style>
+</head>
+
+<audio id="audio-ok" src="/static/dung.mp3"></audio>
+<audio id="audio-bad" src="/static/sai.mp3"></audio>
+
+<body class="bg-gray-50 min-h-screen text-gray-800 font-sans">
+
+  <!-- HEADER -->
+  <header class="bg-white shadow-sm sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+
+      <div class="flex items-center space-x-3">
+        <div class="bg-blue-600 text-white p-2 rounded-lg">
+          <i class="fas fa-barcode"></i>
+        </div>
+        <h1 class="text-xl font-bold text-gray-900">
+          Label<span class="text-blue-600">Detect</span>
+        </h1>
+
+        <a href="/realtime" class="text-sm text-blue-600 hover:underline">
+          Kiểm tra real-time
+        </a>
+        <a href="/calibrate" class="text-sm text-blue-600 hover:underline">
+          Tuỳ chỉnh
+        </a>
+      </div>
+
+      <!-- KHU VỰC CHỌN CONFIG & PHƯƠNG PHÁP -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- PHƯƠNG PHÁP EDGE -->
+        <select id="method-select" class="border p-2 rounded text-sm">
+  <option value="classic">Cách cũ (threshold + màu)</option>
+  <option value="sobel">Sobel</option>
+  <option value="canny">Canny</option>
+  <option value="prewitt">Prewitt</option>
+</select>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- Upload Section -->
+    <div
+      id="drop-zone"
+      class="bg-white rounded-xl shadow-lg p-8 mb-8 text-center border-2 border-dashed border-gray-300 hover:border-blue-500 transition-all group"
+    >
+      <input type="file" id="file-input" class="hidden" accept="image/*" />
+      <div class="space-y-4 cursor-pointer" onclick="document.getElementById('file-input').click()">
+        <div class="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto group-hover:bg-blue-100 transition-colors">
+          <i class="fas fa-cloud-upload-alt text-3xl"></i>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-700">Upload Product Image</h3>
+        <p class="text-gray-500 text-sm">Drag & drop hoặc click để chọn ảnh</p>
+      </div>
+    </div>
+
+    <!-- Processing -->
+    <div id="status-bar" class="hidden mb-8">
+      <div class="flex items-center justify-center space-x-3 text-blue-600 bg-blue-50 p-4 rounded-lg">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span class="font-medium">Đang xử lý ảnh...</span>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div id="error-bar" class="hidden mb-8">
+      <div class="flex items-center justify-center space-x-3 text-red-600 bg-red-50 p-4 rounded-lg">
+        <i class="fas fa-exclamation-circle"></i>
+        <span class="font-medium" id="error-msg">Error processing image.</span>
+      </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="results-area" class="hidden grid grid-cols-1 md:grid-cols-3 gap-8">
+
+      <!-- Original -->
+      <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="bg-gray-100 px-4 py-3 border-b flex justify-between items-center">
+          <span class="font-semibold text-gray-700">Ảnh gốc</span>
+        </div>
+        <div id="original-container" class="relative h-64 bg-gray-900 flex items-center justify-center overflow-hidden">
+          <div class="scanner-line"></div>
+          <img id="img-original" class="max-w-full max-h-full object-contain" />
+        </div>
+      </div>
+
+      <!-- Mask -->
+      <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="bg-gray-100 px-4 py-3 border-b flex justify-between items-center">
+          <span class="font-semibold text-gray-700">Ảnh qua lọc</span>
+        </div>
+        <div class="h-64 bg-black flex items-center justify-center">
+          <img id="img-mask" class="max-w-full max-h-full object-contain" />
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="bg-gray-100 px-4 py-3 border-b flex justify-between items-center">
+          <span class="font-semibold text-gray-700">Kết quả</span>
+        </div>
+        <div class="h-64 bg-gray-900 flex items-center justify-center">
+          <img id="img-result" class="max-w-full max-h-full object-contain" />
+        </div>
+        <p id="label-status" class="text-center text-sm font-semibold mt-2"></p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="text-center py-8 text-gray-400 text-sm">
+    <p>Xử Lý Ảnh - Nguyễn Thu Hương - 221230872 &copy; 2025</p>
+  </footer>
+
+ <script>
+/* ========= CHỌN PHƯƠNG PHÁP EDGE =========== */
+const methodSelect = document.getElementById("method-select");
+if (methodSelect) {
+  methodSelect.addEventListener("change", (e) => {
+    fetch("/set_method", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ method: e.target.value }),
+    });
+  });
+
+  // gửi method mặc định khi load trang
+  window.addEventListener("load", () => {
+    methodSelect.dispatchEvent(new Event("change"));
+  });
+
+  // gửi lựa chọn ban đầu lên server khi load trang
+  window.addEventListener("load", () => {
+    // kích hoạt event change 1 lần để server biết đang dùng method nào
+    methodSelect.dispatchEvent(new Event("change"));
+  });
+}
+
+/* ========= DRAG & DROP =========== */
+const dropZone = document.getElementById("drop-zone");
+["dragenter", "dragover", "dragleave", "drop"].forEach((ev) =>
+  dropZone.addEventListener(ev, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  })
+);
+
+/* ========= FILE UPLOAD =========== */
+const fileInput = document.getElementById("file-input");
+dropZone.addEventListener("drop", (e) => handleFile(e.dataTransfer.files));
+fileInput.addEventListener("change", () => handleFile(fileInput.files));
+
+function handleFile(files) {
+  if (!files || !files[0]) return;
+  if (!files[0].type.startsWith("image/")) {
+    alert("Chỉ nhận file ảnh!");
+    return;
+  }
+  uploadAndProcess(files[0]);
+}
+
+/* ========= PROCESSING =========== */
+const resultsArea = document.getElementById("results-area");
+const statusBar = document.getElementById("status-bar");
+const errorBar = document.getElementById("error-bar");
+const errorMsg = document.getElementById("error-msg");
+const imgOriginal = document.getElementById("img-original");
+const imgMask = document.getElementById("img-mask");
+const imgResult = document.getElementById("img-result");
+const labelStatus = document.getElementById("label-status");
+const originalContainer = document.getElementById("original-container");
+
+function showError(msg) {
+  if (msg) {
+    errorMsg.textContent = msg;
+    errorBar.classList.remove("hidden");
+  } else {
+    errorBar.classList.add("hidden");
+  }
+}
+
+function uploadAndProcess(file) {
+  showError(null);
+  statusBar.classList.remove("hidden");
+  resultsArea.classList.remove("hidden");
+  originalContainer.classList.add("scanning");
+
+  const formData = new FormData();
+  formData.append("image", file);
+
+  fetch("/process", { method: "POST", body: formData })
+    .then((res) => res.json())
+    .then((data) => {
+      imgOriginal.src = `data:image/jpeg;base64,${data.origin}`;
+      imgMask.src = `data:image/jpeg;base64,${data.mask}`;
+      imgResult.src = `data:image/jpeg;base64,${data.result}`;
+
+      const textMap = {
+        dan_dung: "Tem dán ĐÚNG",
+        dan_lech: "Tem dán LỆCH",
+        tem_rach: "TEM RÁCH / LỖ",
+        tem_lech_rach: "Tem LỆCH + RÁCH",
+        khong_tim_thay: "Không tìm thấy tem",
+      };
+      labelStatus.textContent = textMap[data.status] || "Không rõ";
+
+      statusBar.classList.add("hidden");
+      originalContainer.classList.remove("scanning");
+
+      const ok = document.getElementById("audio-ok");
+      const bad = document.getElementById("audio-bad");
+      ok.pause();
+      ok.currentTime = 0;
+      bad.pause();
+      bad.currentTime = 0;
+      if (data.status === "dan_dung") ok.play();
+      else if (data.status !== "khong_tim_thay") bad.play();
+    })
+    .catch((err) => {
+      console.error(err);
+      showError("Lỗi xử lý ảnh!");
+    });
+}
+</script>
+
+</body>
+</html>
